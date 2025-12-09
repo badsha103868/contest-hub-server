@@ -4,8 +4,7 @@ const app = express()
 require("dotenv").config();
 const { MongoClient, ServerApiVersion } = require('mongodb');
 const port = process.env.PORT || 3000;
-// contest_hub_user
-// KJQ2qKj5kO4cspsT
+
 
 
 // middleware
