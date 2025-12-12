@@ -5,6 +5,14 @@ require("dotenv").config();
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const port = process.env.PORT || 3000;
 
+// firebase admin key
+const admin = require("firebase-admin");
+
+const serviceAccount = require("./contest-hub-firebase-adminsdk.json");
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
+});
 
 
 // middleware
@@ -13,13 +21,27 @@ app.use(cors());
 
 //  jwt verify middleware
 const verifyFBToken = async (req, res, next)=>{
+
   console.log('headers in the middleware', req.headers.authorization)
-  token = req.headers.authorization
+
+ const token = req.headers.authorization
   if(!token){
     return res.send({message: "Unauthorized access"})
+  } 
+  try{
+  const idToken = token.split(" ")[1]
+  const decoded = await admin.auth().verifyIdToken(idToken);
+
+  // console.log("decoded in the token", decoded);
+    req.decoded_email = decoded.email;
+     next()
+  }
+  catch (err) {
+    //  jodi error khai
+    return res.status(401).send({ message: "unauthorized access" });
   }
 
- next()
+
 }
 
  
@@ -50,8 +72,8 @@ async function run() {
     
     //    GET
     app.get('/users',verifyFBToken,async (req, res)=>{
-      console.log(req.headers)
-        const cursor = usersCollection.find()
+      // console.log(req.headers)
+        const cursor = usersCollection.find().sort({ createdAt: -1 }).limit(5);
         const result = await cursor.toArray()
         res.send(result)
     } )
