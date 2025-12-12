@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const app = express()
 require("dotenv").config();
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const port = process.env.PORT || 3000;
 
 
@@ -56,6 +56,17 @@ async function run() {
        const result = await usersCollection.insertOne(user)
        res.send(result)
     })
+    
+    // PATCH
+   app.patch('/users/:id/role', async(req, res)=>{
+     const id = req.params.id;
+      const { role } = req.body; 
+     const query = {_id : new ObjectId(id)}
+     
+     const updatedUser = { $set: { role } };
+     const result = await usersCollection.updateOne(query, updatedUser)
+     res.send(result)
+   })
 
   //  contests related apis 
 
