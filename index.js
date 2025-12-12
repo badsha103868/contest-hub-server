@@ -10,6 +10,18 @@ const port = process.env.PORT || 3000;
 // middleware
 app.use(express.json());
 app.use(cors());
+
+//  jwt verify middleware
+const verifyFBToken = async (req, res, next)=>{
+  console.log('headers in the middleware', req.headers.authorization)
+  token = req.headers.authorization
+  if(!token){
+    return res.send({message: "Unauthorized access"})
+  }
+
+ next()
+}
+
  
 // mongodb connection string
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@portfolio-cluster1.ea8n2bl.mongodb.net/?appName=portfolio-cluster1`
@@ -37,7 +49,8 @@ async function run() {
     //  users related apis 
     
     //    GET
-    app.get('/users', async (req, res)=>{
+    app.get('/users',verifyFBToken,async (req, res)=>{
+      console.log(req.headers)
         const cursor = usersCollection.find()
         const result = await cursor.toArray()
         res.send(result)
@@ -62,7 +75,7 @@ async function run() {
      const id = req.params.id;
       const { role } = req.body; 
      const query = {_id : new ObjectId(id)}
-     
+
      const updatedUser = { $set: { role } };
      const result = await usersCollection.updateOne(query, updatedUser)
      res.send(result)
