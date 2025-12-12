@@ -32,7 +32,30 @@ async function run() {
     const contestsCollection = db.collection("contests")
     const paymentsCollection = db.collection('payments')
     const usersCollection = db.collection("users")
+   
 
+    //  users related apis 
+    
+    //    GET
+    app.get('/users', async (req, res)=>{
+        const cursor = usersCollection.find()
+        const result = await cursor.toArray()
+        res.send(result)
+    } )
+
+    //   POST
+    app.post('/users', async(req, res)=>{
+       const user = req.body;
+       user.role = "user";
+       user.createdAt = new Date();
+       const email = user.email;
+       const existsUser = await usersCollection.findOne({ email })
+       if(existsUser){
+        return res.send({message: "user exists"});
+       }
+       const result = await usersCollection.insertOne(user)
+       res.send(result)
+    })
 
   //  contests related apis 
 
