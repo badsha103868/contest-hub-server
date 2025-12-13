@@ -8,7 +8,11 @@ const port = process.env.PORT || 3000;
 // firebase admin key
 const admin = require("firebase-admin");
 
-const serviceAccount = require("./contest-hub-firebase-adminsdk.json");
+// const serviceAccount = require("./contest-hub-firebase-adminsdk.json");
+
+const decoded = Buffer.from(process.env.FB_SERVICE_KEY, 'base64').toString('utf8')
+
+const serviceAccount = JSON.parse(decoded);
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
@@ -73,7 +77,7 @@ async function run() {
     //  users related apis 
     
     //    GET
-    app.get('/users',verifyFBToken,async (req, res)=>{
+    app.get('/users',async (req, res)=>{
       // console.log(req.headers)
         const cursor = usersCollection.find().sort({ createdAt: -1 }).limit(5);
         const result = await cursor.toArray()
@@ -92,6 +96,14 @@ async function run() {
        }
        const result = await usersCollection.insertOne(user)
        res.send(result)
+    })
+
+    // user ar role onujayi get
+    app.get('/users/:email/role', async(req, res)=>{
+      const email = req.params.email;
+      const query = { email }
+      const user = await usersCollection.findOne(query)
+      res.send({role: user?.role || "user"})
     })
     
     // PATCH
@@ -122,7 +134,7 @@ async function run() {
       contest.participants = 0;
       contest.winner = null;
       contest.createdAt = new Date()
-      
+
       const result = await contestsCollection.insertOne(contest)
       res.send(result)
   })
