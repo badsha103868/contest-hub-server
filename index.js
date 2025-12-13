@@ -121,7 +121,12 @@ async function run() {
 
   //    GET ALL Contests
   app.get('/contests', async(req, res) =>{
-     const cursor = contestsCollection.find()
+    const query ={}
+    const { email } = req.query;
+     if(email){
+      query.creator_email = email;
+     }
+     const cursor = contestsCollection.find(query)
      const result = await cursor.toArray()
      res.send(result)
   })
@@ -138,7 +143,14 @@ async function run() {
       const result = await contestsCollection.insertOne(contest)
       res.send(result)
   })
-
+  
+  // Delete
+  app.delete('/contests/:id', async(req, res)=>{
+    const id = req.params.id;
+    const query = {_id : new ObjectId(id)}
+    const result = await contestsCollection.deleteOne(query)
+    res.send(result)
+  })
 
 
     // Send a ping to confirm a successful connection
