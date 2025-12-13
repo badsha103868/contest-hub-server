@@ -24,15 +24,17 @@ const verifyFBToken = async (req, res, next)=>{
 
   console.log('headers in the middleware', req.headers.authorization)
 
- const token = req.headers.authorization
+ const token = req.headers.authorization;
   if(!token){
-    return res.send({message: "Unauthorized access"})
+    return res.status(401).send({ message: "unauthorized access" });
   } 
-  try{
+
+  try {
   const idToken = token.split(" ")[1]
+  // console.log(idToken)
   const decoded = await admin.auth().verifyIdToken(idToken);
 
-  // console.log("decoded in the token", decoded);
+  console.log("decoded in the token", decoded);
     req.decoded_email = decoded.email;
      next()
   }
@@ -113,8 +115,14 @@ async function run() {
   })
 
     // POST
-  app.post('/contests', async(req,res)=>{
+  app.post('/contests',verifyFBToken, async(req,res)=>{
       const contest = req.body;
+      contest.creator_email = req.decoded_email;
+      contest.status = "pending";
+      contest.participants = 0;
+      contest.winner = null;
+      contest.createdAt = new Date()
+      
       const result = await contestsCollection.insertOne(contest)
       res.send(result)
   })
