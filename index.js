@@ -143,7 +143,17 @@ async function run() {
       const result = await contestsCollection.insertOne(contest)
       res.send(result)
   })
-  
+  //  PATCH
+  app.patch('/contests/:id', async(req, res)=>{
+     const id = req.params.id;
+     const updatedData = req.body;
+      const query = {_id : new ObjectId(id)}
+      const update ={
+        $set: updatedData
+      }
+   const result = await contestsCollection.updateOne(query, update)
+   res.send(result)
+  })
   // Delete
   app.delete('/contests/:id', async(req, res)=>{
     const id = req.params.id;
