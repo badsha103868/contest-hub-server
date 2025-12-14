@@ -118,9 +118,17 @@ async function run() {
    })
 
   //  contests related apis 
+  //  Get all contest
+  // app.get('/contest', async(req, res)=>{
+  //   const cursor = contestsCollection.find()
+  //   const result = await cursor.toArray()
+  //   res.send(result)
+  // })
 
-  //    GET ALL Contests
+
+  //    GET user ar my  Contests 
   app.get('/contests', async(req, res) =>{
+
     const query ={}
     const { email } = req.query;
      if(email){
