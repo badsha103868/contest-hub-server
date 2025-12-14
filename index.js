@@ -235,10 +235,44 @@ async function run() {
           contestId: paymentInfo.contestId,
         },
         customer_email: paymentInfo.userEmail,
-        success_url: `${process.env.SITE_DOMAIN}/dashboard/payment-success`,
+        success_url: `${process.env.SITE_DOMAIN}/dashboard/payment-success?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${process.env.SITE_DOMAIN}/dashboard/payment-cancelled`,
       });
       res.send({ url: session.url });
+    });
+
+    //  payment post api to database
+    app.post("/payments/confirm", async (req, res) => {
+      const { sessionId } = req.body;
+      const session = await stripe.checkout.sessions.retrieve(sessionId);
+
+      if (session.payment_status !== "paid") {
+        return res.status(400).send({ message: "Payment not completed" });
+      }
+      const contestId = session.metadata.contestId;
+      const email = session.customer_email;
+
+      // save payment
+      await paymentsCollection.insertOne({
+        contestId,
+        email,
+        amount: session.amount_total / 100,
+        sessionId,
+        paidAt: new Date(),
+      });
+      // increase participants count
+      await contestsCollection.updateOne(
+        { _id: new ObjectId(contestId) },
+        { $inc: { participants: 1 } }
+      );
+        //  user registered
+      await contestsCollection.updateOne(
+        { _id: new ObjectId(contestId) },
+        { $addToSet: { registeredUsers: email } }
+      );
+        
+      // navigate kora abr oi akoi details page a fira jete contestId client a patabo
+      res.send({ success: true, contestId });
     });
 
     // Send a ping to confirm a successful connection
