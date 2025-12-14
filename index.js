@@ -20,6 +20,9 @@ admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
 });
 
+// stripe connection string
+const stripe = require("stripe")(process.env.STRIPE_SECRET);
+
 // middleware
 app.use(express.json());
 app.use(cors());
@@ -176,18 +179,20 @@ async function run() {
     });
 
     // GET Contest for contest details page
-  app.get('/contests/:id', async(req,res)=>{
-  try {
-    const id = req.params.id;
-    const contest = await contestsCollection.findOne({_id: new ObjectId(id)});
-    if(!contest) return res.status(404).send({message: 'Contest not found'});
-    res.send(contest);
-  } catch(err) {
-    console.error(err);
-    res.status(500).send({message: 'Server error'});
-  }
-})
-
+    app.get("/contests/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const contest = await contestsCollection.findOne({
+          _id: new ObjectId(id),
+        });
+        if (!contest)
+          return res.status(404).send({ message: "Contest not found" });
+        res.send(contest);
+      } catch (err) {
+        console.error(err);
+        res.status(500).send({ message: "Server error" });
+      }
+    });
 
     //  PATCH
     app.patch("/contests/:id", async (req, res) => {
@@ -206,6 +211,34 @@ async function run() {
       const query = { _id: new ObjectId(id) };
       const result = await contestsCollection.deleteOne(query);
       res.send(result);
+    });
+
+    //  payment related apis
+    app.post("/payment-checkout-session", async (req, res) => {
+      const paymentInfo = req.body;
+      const amount = parseInt(paymentInfo.price) * 100;
+      const session = await stripe.checkout.sessions.create({
+        line_items: [
+          {
+            price_data: {
+              currency: "usd",
+              unit_amount: amount,
+              product_data: {
+                name: `Please pay for: ${paymentInfo.contestName}`,
+              },
+            },
+            quantity: 1,
+          },
+        ],
+        mode: "payment",
+        metadata: {
+          contestId: paymentInfo.contestId,
+        },
+        customer_email: paymentInfo.userEmail,
+        success_url: `${process.env.SITE_DOMAIN}/dashboard/payment-success`,
+        cancel_url: `${process.env.SITE_DOMAIN}/dashboard/payment-cancelled`,
+      });
+      res.send({ url: session.url });
     });
 
     // Send a ping to confirm a successful connection
