@@ -75,7 +75,7 @@ async function run() {
     //  users related apis
 
     //    GET
-    app.get("/users", async (req, res) => {
+    app.get("/users", verifyFBToken, async (req, res) => {
       // console.log(req.headers)
       const cursor = usersCollection.find().sort({ createdAt: -1 }).limit(5);
       const result = await cursor.toArray();
@@ -97,7 +97,7 @@ async function run() {
     });
 
     // user ar role onujayi get
-    app.get("/users/:email/role", async (req, res) => {
+    app.get("/users/:email/role", verifyFBToken, async (req, res) => {
       const email = req.params.email;
       const query = { email };
       const user = await usersCollection.findOne(query);
@@ -105,7 +105,7 @@ async function run() {
     });
 
     // PATCH
-    app.patch("/users/:id/role", async (req, res) => {
+    app.patch("/users/:id/role", verifyFBToken, async (req, res) => {
       const id = req.params.id;
       const { role } = req.body;
       const query = { _id: new ObjectId(id) };
@@ -115,16 +115,8 @@ async function run() {
       res.send(result);
     });
 
-    //  contests related apis
-    //  Get all contest
-    // app.get('/contest', async(req, res)=>{
-    //   const cursor = contestsCollection.find()
-    //   const result = await cursor.toArray()
-    //   res.send(result)
-    // })
-
     //    GET user ar my  Contests
-    app.get("/contests", async (req, res) => {
+    app.get("/contests", verifyFBToken, async (req, res) => {
       const query = {};
       const { email, type, status, sort } = req.query;
 
@@ -195,7 +187,7 @@ async function run() {
     });
 
     //  PATCH
-    app.patch("/contests/:id", async (req, res) => {
+    app.patch("/contests/:id", verifyFBToken, async (req, res) => {
       const id = req.params.id;
       const updatedData = req.body;
       const query = { _id: new ObjectId(id) };
@@ -223,7 +215,7 @@ async function run() {
     });
 
     // submit task post apis
-    app.post("/contests/:id/submit-task", async (req, res) => {
+    app.post("/contests/:id/submit-task", verifyFBToken, async (req, res) => {
       const id = req.params.id;
       const submissionData = req.body;
 
@@ -274,6 +266,13 @@ async function run() {
         if (contest.creator_email !== req.decoded_email) {
           return res.status(403).send({ message: "Access denied" });
         }
+        // Check if deadline has passed
+        const now = new Date();
+        if (new Date(contest.deadline) > now) {
+          return res
+            .status(400)
+            .send({ message: "Cannot declare winner before contest deadline" });
+        }
 
         const winnerSubmission = (contest.submissions || []).find(
           (sub) => sub.email === winnerEmail
@@ -304,7 +303,7 @@ async function run() {
     );
 
     // Delete
-    app.delete("/contests/:id", async (req, res) => {
+    app.delete("/contests/:id", verifyFBToken, async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await contestsCollection.deleteOne(query);
@@ -340,7 +339,7 @@ async function run() {
     });
 
     //  payment post api to database
-    app.post("/payments/confirm", async (req, res) => {
+    app.post("/payments/confirm", verifyFBToken, async (req, res) => {
       const { sessionId } = req.body;
       const session = await stripe.checkout.sessions.retrieve(sessionId);
 
@@ -431,6 +430,31 @@ async function run() {
 
       const result = await usersCollection.updateOne({ email }, update);
       res.send(result);
+    });
+
+    // leaderboard
+    // GET leaderboard
+    app.get("/leaderboard", async (req, res) => {
+      const pipeline = [
+        {
+          $match: { "winner.email": { $exists: true } }, // only contests with winners
+        },
+        {
+          $group: {
+            _id: "$winner.email",
+            name: { $first: "$winner.name" },
+            photo: { $first: "$winner.photo" },
+            wins: { $sum: 1 },
+          },
+        },
+        { $sort: { wins: -1 } },
+        { $limit: 20 }, // top 20 winners
+      ];
+
+      const leaderboard = await contestsCollection
+        .aggregate(pipeline)
+        .toArray();
+      res.send(leaderboard); // array
     });
 
     // Send a ping to confirm a successful connection
