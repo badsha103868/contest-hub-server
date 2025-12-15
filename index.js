@@ -206,6 +206,20 @@ async function run() {
       res.send(result);
     });
 
+    // get all submissions for a contest
+    app.get('/contests/:id/submissions',verifyFBToken, async(req,res)=>{
+      const id = req.params.id;
+      const query = {_id: new ObjectId(id)}
+      const contest = await contestsCollection.findOne(query)
+      // only creator of this contest can see submission check
+      if(contest.creator_email !== req.decoded_email){
+        return res.status(403).send({ message: "Access denied" });
+      }
+
+      const submissions = contest.submissions || [];
+      res.send(submissions)
+    })
+
     // submit task post apis
     app.post("/contests/:id/submit-task", async (req, res) => {
       const id = req.params.id;
