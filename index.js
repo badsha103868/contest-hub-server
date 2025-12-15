@@ -207,18 +207,20 @@ async function run() {
     });
 
     // get all submissions for a contest
-    app.get('/contests/:id/submissions',verifyFBToken, async(req,res)=>{
+    app.get("/contests/:id/submissions", verifyFBToken, async (req, res) => {
       const id = req.params.id;
-      const query = {_id: new ObjectId(id)}
-      const contest = await contestsCollection.findOne(query)
+      const query = { _id: new ObjectId(id) };
+      const contest = await contestsCollection.findOne(query);
       // only creator of this contest can see submission check
-      if(contest.creator_email !== req.decoded_email){
+      if (contest.creator_email !== req.decoded_email) {
         return res.status(403).send({ message: "Access denied" });
       }
 
-      const submissions = contest.submissions || [];
-      res.send(submissions)
-    })
+      res.send({
+        submissions: contest.submissions || [],
+        winner: contest.winner || null,
+      });
+    });
 
     // submit task post apis
     app.post("/contests/:id/submit-task", async (req, res) => {
@@ -242,16 +244,65 @@ async function run() {
       const submission = {
         name: submissionData.name,
         email: submissionData.email,
+        photo: submissionData.photo,
         taskInfo: submissionData.taskInfo,
         createdAt: new Date(),
       };
-      const result = await contestsCollection.updateOne(query, { $addToSet: { submissions: submission } });
+      const result = await contestsCollection.updateOne(query, {
+        $addToSet: { submissions: submission },
+      });
       res.send({
         success: true,
         message: "Task submitted successfully",
         result,
       });
     });
+
+    // patch declare winner
+    app.patch(
+      "/contests/:id/declare-winner",
+      verifyFBToken,
+      async (req, res) => {
+        const id = req.params.id;
+        const { winnerEmail } = req.body;
+        const query = { _id: new ObjectId(id) };
+
+        const contest = await contestsCollection.findOne(query);
+        if (!contest)
+          return res.status(404).send({ message: "Contest not found" });
+
+        if (contest.creator_email !== req.decoded_email) {
+          return res.status(403).send({ message: "Access denied" });
+        }
+
+        const winnerSubmission = (contest.submissions || []).find(
+          (sub) => sub.email === winnerEmail
+        );
+        if (!winnerSubmission) {
+          return res
+            .status(400)
+            .send({ message: "Winner submission not found" });
+        }
+
+        const winnerData = {
+          name: winnerSubmission.name,
+          email: winnerSubmission.email,
+          photo: winnerSubmission.photo || "",
+          taskInfo: winnerSubmission.taskInfo,
+        };
+
+        const result = await contestsCollection.updateOne(query, {
+          $set: { winner: winnerData },
+        });
+
+        res.send({
+          success: true,
+          message: "Winner declared successfully",
+          result,
+        });
+      }
+    );
+
     // Delete
     app.delete("/contests/:id", async (req, res) => {
       const id = req.params.id;
@@ -320,6 +371,23 @@ async function run() {
 
       // navigate kora abr oi akoi details page a fira jete contestId client a patabo
       res.send({ success: true, contestId });
+    });
+
+    // user ar payment history get
+    app.get("/my-participated-contests", verifyFBToken, async (req, res) => {
+      const email = req.decoded_email;
+      // payment collection ar modde user email find 
+      const payments = await paymentsCollection.find({ email }).toArray();
+        
+      // payment ar array te oi contest ar id map kora ber kora
+      const contestIds = payments.map((p) => new ObjectId(p.contestId));
+
+      const contests = await contestsCollection
+        .find({ _id: { $in: contestIds } })
+        .sort({ deadline: 1 })  
+        .toArray();
+
+      res.send(contests);
     });
 
     // Send a ping to confirm a successful connection
