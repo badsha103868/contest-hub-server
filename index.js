@@ -403,6 +403,36 @@ async function run() {
       res.send(contests);
     });
 
+    // get my profile
+    app.get("/my-profile", verifyFBToken, async (req, res) => {
+      const email = req.decoded_email;
+
+      const participated = await paymentsCollection.countDocuments({ email });
+      const wins = await contestsCollection.countDocuments({
+        "winner.email": email,
+      });
+
+      const user = await usersCollection.findOne({ email });
+
+      res.send({
+        user,
+        participated,
+        wins,
+        winPercentage: participated
+          ? Math.round((wins / participated) * 100)
+          : 0,
+      });
+    });
+
+    // update profile
+    app.patch("/my-profile", verifyFBToken, async (req, res) => {
+      const email = req.decoded_email;
+      const update = { $set: req.body };
+
+      const result = await usersCollection.updateOne({ email }, update);
+      res.send(result);
+    });
+
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log(
