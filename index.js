@@ -376,15 +376,28 @@ async function run() {
     // user ar payment history get
     app.get("/my-participated-contests", verifyFBToken, async (req, res) => {
       const email = req.decoded_email;
-      // payment collection ar modde user email find 
+      // payment collection ar modde user email find
       const payments = await paymentsCollection.find({ email }).toArray();
-        
+
       // payment ar array te oi contest ar id map kora ber kora
       const contestIds = payments.map((p) => new ObjectId(p.contestId));
 
       const contests = await contestsCollection
         .find({ _id: { $in: contestIds } })
-        .sort({ deadline: 1 })  
+        .sort({ deadline: 1 })
+        .toArray();
+
+      res.send(contests);
+    });
+
+    //  my winning contest apis
+    app.get("/my-winning-contests", verifyFBToken, async (req, res) => {
+      const email = req.decoded_email;
+
+      const contests = await contestsCollection
+        .find({
+          "winner.email": email,
+        })
         .toArray();
 
       res.send(contests);
