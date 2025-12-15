@@ -150,7 +150,7 @@ async function run() {
       res.send(result);
     });
 
-    // GET distinct contest types
+    // GET contest by  contest types
     app.get("/contests/contest_type", async (req, res) => {
       const cursor = contestsCollection.find(
         { status: "approved" },
@@ -204,6 +204,39 @@ async function run() {
       };
       const result = await contestsCollection.updateOne(query, update);
       res.send(result);
+    });
+
+    // submit task post apis
+    app.post("/contests/:id/submit-task", async (req, res) => {
+      const id = req.params.id;
+      const submissionData = req.body;
+
+      const query = { _id: new ObjectId(id) };
+      // check id contest exist
+      const contest = await contestsCollection.findOne(query);
+      if (!contest) {
+        return res.status(403).send({ message: "Contest not found" });
+      }
+
+      // only registered use can send submit check
+      if (!contest.registeredUsers?.includes(submissionData.email)) {
+        return res
+          .status(403)
+          .send({ message: "You are not registered for this contest " });
+      }
+      // Add submission
+      const submission = {
+        name: submissionData.name,
+        email: submissionData.email,
+        taskInfo: submissionData.taskInfo,
+        createdAt: new Date(),
+      };
+      const result = await contestsCollection.updateOne(query, { $addToSet: { submissions: submission } });
+      res.send({
+        success: true,
+        message: "Task submitted successfully",
+        result,
+      });
     });
     // Delete
     app.delete("/contests/:id", async (req, res) => {
@@ -265,12 +298,12 @@ async function run() {
         { _id: new ObjectId(contestId) },
         { $inc: { participants: 1 } }
       );
-        //  user registered
+      //  user registered
       await contestsCollection.updateOne(
         { _id: new ObjectId(contestId) },
         { $addToSet: { registeredUsers: email } }
       );
-        
+
       // navigate kora abr oi akoi details page a fira jete contestId client a patabo
       res.send({ success: true, contestId });
     });
