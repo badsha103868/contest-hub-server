@@ -65,7 +65,7 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    // await client.connect();
+    await client.connect();
 
     const db = client.db("contestHubDB");
     const contestsCollection = db.collection("contests");
@@ -211,6 +211,7 @@ async function run() {
       res.send({
         submissions: contest.submissions || [],
         winner: contest.winner || null,
+        deadline: contest.deadline,
       });
     });
 
@@ -224,6 +225,19 @@ async function run() {
       const contest = await contestsCollection.findOne(query);
       if (!contest) {
         return res.status(403).send({ message: "Contest not found" });
+      }
+      //  deadline passed
+      if (new Date(contest.deadline) < new Date()) {
+        return res
+          .status(400)
+          .send({ message: "Submission closed. Deadline passed." });
+      }
+
+      //  not registered
+      if (!contest.registeredUsers?.includes(submissionData.email)) {
+        return res
+          .status(403)
+          .send({ message: "You are not registered for this contest" });
       }
 
       // only registered use can send submit check
@@ -262,10 +276,16 @@ async function run() {
         const contest = await contestsCollection.findOne(query);
         if (!contest)
           return res.status(404).send({ message: "Contest not found" });
-
+        // only creator
         if (contest.creator_email !== req.decoded_email) {
           return res.status(403).send({ message: "Access denied" });
         }
+
+        //  winner already declared
+        if (contest.winner) {
+          return res.status(400).send({ message: "Winner already declared" });
+        }
+
         // Check if deadline has passed
         const now = new Date();
         if (new Date(contest.deadline) > now) {
@@ -437,7 +457,8 @@ async function run() {
     app.get("/leaderboard", async (req, res) => {
       const pipeline = [
         {
-          $match: { "winner.email": { $exists: true } }, // only contests with winners
+          // only contests with winners
+          $match: { "winner.email": { $exists: true } },
         },
         {
           $group: {
@@ -447,8 +468,9 @@ async function run() {
             wins: { $sum: 1 },
           },
         },
+        // top 20 winners
         { $sort: { wins: -1 } },
-        { $limit: 20 }, // top 20 winners
+        { $limit: 20 },
       ];
 
       const leaderboard = await contestsCollection
@@ -458,10 +480,10 @@ async function run() {
     });
 
     // Send a ping to confirm a successful connection
-    // await client.db("admin").command({ ping: 1 });
-    // console.log(
-    //   "Pinged your deployment. You successfully connected to MongoDB!"
-    // );
+    await client.db("admin").command({ ping: 1 });
+    console.log(
+      "Pinged your deployment. You successfully connected to MongoDB!"
+    );
   } finally {
   }
 }
