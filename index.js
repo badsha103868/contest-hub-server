@@ -339,7 +339,7 @@ async function run() {
     });
 
     //  payment post api to database
-    app.post("/payments/confirm", verifyFBToken, async (req, res) => {
+    app.post("/payments/confirm", async (req, res) => {
       const { sessionId } = req.body;
       const session = await stripe.checkout.sessions.retrieve(sessionId);
 
