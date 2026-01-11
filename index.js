@@ -77,7 +77,7 @@ async function run() {
     //    GET
     app.get("/users", verifyFBToken, async (req, res) => {
       // console.log(req.headers)
-      const cursor = usersCollection.find().sort({ createdAt: -1 }).limit(5);
+      const cursor = usersCollection.find().sort({ createdAt: -1 }).limit(10);
       const result = await cursor.toArray();
       res.send(result);
     });
@@ -136,7 +136,7 @@ async function run() {
       let cursor = contestsCollection.find(query);
 
       if (sort) {
-        cursor = cursor.sort({ participants: -1 }).limit(6);
+        cursor = cursor.sort({ participants: -1 }).limit(8);
       }
       const result = await cursor.toArray();
       res.send(result);
