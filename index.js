@@ -65,7 +65,7 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
+    // await client.connect();
 
     const db = client.db("contestHubDB");
     const contestsCollection = db.collection("contests");
@@ -116,30 +116,69 @@ async function run() {
     });
 
     //    GET user ar my  Contests
+
     app.get("/contests", async (req, res) => {
       const query = {};
-      const { email, type, status, sort } = req.query;
+      const {
+        email,
+        type,
+        status,
+        sort,
+        search,
+        minPrize,
+        maxPrize,
+        page = 1,
+        limit = 8,
+      } = req.query;
 
       // creator contests
       if (email) {
         query.creator_email = email;
       }
-      // contest status (approved / pending / rejected)
+
+      // status filter
       if (status) {
         query.status = status;
       }
-      // search by contest type
-      if (type) {
+
+      // 🔍 search by contest NAME (case-insensitive)
+      if (search) {
+        query.name = { $regex: search, $options: "i" };
+      }
+
+      // search by contest type (case-insensitive)
+      if (type && type !== "all") {
         query.contest_type = { $regex: type, $options: "i" };
       }
 
+      // prize filter
+      if (minPrize || maxPrize) {
+        query.prize_money = {};
+        if (minPrize) query.prize_money.$gte = Number(minPrize);
+        if (maxPrize) query.prize_money.$lte = Number(maxPrize);
+      }
+
+      // pagination
+      const skip = (Number(page) - 1) * Number(limit);
+
       let cursor = contestsCollection.find(query);
 
-      if (sort) {
-        cursor = cursor.sort({ participants: -1 }).limit(8);
+      // sorting
+      if (sort === "popular") {
+        cursor = cursor.sort({ participants: -1 });
+      } else if (sort === "prize") {
+        cursor = cursor.sort({ prize_money: -1 });
+      } else if (sort === "latest") {
+        cursor = cursor.sort({ createdAt: -1 });
       }
-      const result = await cursor.toArray();
-      res.send(result);
+
+      const total = await contestsCollection.countDocuments(query);
+      const contests = await cursor.skip(skip).limit(Number(limit)).toArray();
+
+      res.send({
+        total,
+        contests,
+      });
     });
 
     // GET contest by  contest types
@@ -424,23 +463,57 @@ async function run() {
 
     // get my profile
     app.get("/my-profile", verifyFBToken, async (req, res) => {
-      const email = req.decoded_email;
+      try {
+        const email = req.decoded_email;
 
-      const participated = await paymentsCollection.countDocuments({ email });
-      const wins = await contestsCollection.countDocuments({
-        "winner.email": email,
-      });
+        // user info
+        const user = await usersCollection.findOne({ email });
 
-      const user = await usersCollection.findOne({ email });
+        // user stats
+        const participated = await paymentsCollection.countDocuments({ email });
+        const wins = await contestsCollection.countDocuments({
+          "winner.email": email,
+        });
 
-      res.send({
-        user,
-        participated,
-        wins,
-        winPercentage: participated
+        let createdContests = 0;
+        let approvedContests = 0;
+        let rejectedContests = 0;
+
+        if (user?.role === "creator") {
+          createdContests = await contestsCollection.countDocuments({
+            creator_email: email,
+          });
+
+          // approved contests
+          approvedContests = await contestsCollection.countDocuments({
+            creator_email: email,
+            status: "approved",
+          });
+
+          // rejected contests
+          rejectedContests = await contestsCollection.countDocuments({
+            creator_email: email,
+            status: "rejected",
+          });
+        }
+
+        const winPercentage = participated
           ? Math.round((wins / participated) * 100)
-          : 0,
-      });
+          : 0;
+
+        res.send({
+          user,
+          participated,
+          wins,
+          createdContests,
+          approvedContests,
+          rejectedContests,
+          winPercentage,
+        });
+      } catch (err) {
+        console.error(err);
+        res.status(500).send({ message: "Server error" });
+      }
     });
 
     // update profile
@@ -452,7 +525,7 @@ async function run() {
       res.send(result);
     });
 
-    // leaderboard
+    
     // GET leaderboard
     app.get("/leaderboard", async (req, res) => {
       const pipeline = [
@@ -479,11 +552,11 @@ async function run() {
       res.send(leaderboard); // array
     });
 
-    // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
-    console.log(
-      "Pinged your deployment. You successfully connected to MongoDB!"
-    );
+    // // Send a ping to confirm a successful connection
+    // await client.db("admin").command({ ping: 1 });
+    // console.log(
+    //   "Pinged your deployment. You successfully connected to MongoDB!"
+    // );
   } finally {
   }
 }
